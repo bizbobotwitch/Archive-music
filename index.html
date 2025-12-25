@@ -43,7 +43,6 @@ const App = () => {
   const [isShuffle, setIsShuffle] = useState(false);
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   const [favorites, setFavorites] = useState([]);
-  const [recentPlays, setRecentPlays] = useState([]);
   
   const audioRef = useRef(null);
 
@@ -109,7 +108,6 @@ const App = () => {
         setQueue(albumTracks);
         setQueueIndex(startIndex);
         loadTrackFromQueue(albumTracks, startIndex);
-        setRecentPlays(prev => [item, ...prev.filter(i => i.id !== item.id)].slice(0, 10));
       }
     } catch (err) {
       console.error(err);
@@ -128,11 +126,9 @@ const App = () => {
   };
 
   const handleNext = () => {
-    if (loopMode === 'one') {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play();
-      }
+    if (loopMode === 'one' && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
     } else if (queueIndex < queue.length - 1) {
       const nextIndex = queueIndex + 1;
       setQueueIndex(nextIndex);
@@ -172,23 +168,11 @@ const App = () => {
   };
 
   const toggleLoop = () => {
-    setLoopMode(prev => {
-      if (prev === 'none') return 'all';
-      if (prev === 'all') return 'one';
-      return 'none';
-    });
-  };
-
-  const seek = (e) => {
-    const val = parseFloat(e.target.value);
-    if (audioRef.current && audioRef.current.duration) {
-      audioRef.current.currentTime = (val / 100) * audioRef.current.duration;
-      setProgress(val);
-    }
+    setLoopMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none');
   };
 
   const formatTime = (time) => {
-    if (time === null || time === undefined || isNaN(time) || time === Infinity) return "0:00";
+    if (!time || isNaN(time) || time === Infinity) return "0:00";
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -202,18 +186,18 @@ const App = () => {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-white text-black font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-white text-black font-sans flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="pt-14 px-6 pb-4 bg-white/95 backdrop-blur-xl sticky top-0 z-20 border-b border-gray-50">
+      <header className="pt-12 px-6 pb-4 bg-white/95 backdrop-blur-xl border-b border-gray-50 flex-none z-20">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            {(view === 'artist' || (view === 'search' && searchQuery)) && (
+            {(view !== 'home') && (
               <button onClick={() => setView('home')} className="text-pink-500"><ChevronLeft size={28} /></button>
             )}
             <h1 className="text-2xl font-black capitalize tracking-tight">{view === 'artist' ? '' : view}</h1>
           </div>
           <div className="flex items-center space-x-4">
-            <button onClick={() => setAudioQuality(q => q === 'lossless' ? 'high' : 'lossless')} className={`p-1 rounded-full ${audioQuality === 'lossless' ? 'text-black' : 'text-gray-300'}`}>
+            <button onClick={() => setAudioQuality(q => q === 'lossless' ? 'high' : 'lossless')} className={`p-1 transition-colors ${audioQuality === 'lossless' ? 'text-black' : 'text-gray-300'}`}>
               <Zap size={20} fill={audioQuality === 'lossless' ? 'currentColor' : 'none'} />
             </button>
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-orange-400 flex items-center justify-center text-white text-[10px] font-black">ME</div>
@@ -230,18 +214,18 @@ const App = () => {
             />
           </div>
         )}
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-40">
+      {/* Scrollable Content Area */}
+      <main className="flex-1 overflow-y-auto pb-40 px-6">
         {view === 'home' && (
-          <div className="px-6 space-y-10 mt-6 animate-in fade-in duration-500">
+          <div className="space-y-10 mt-6 animate-in fade-in duration-500">
             <section>
               <h2 className="text-2xl font-bold mb-4">Listen Now</h2>
-              <div className="flex space-x-4 overflow-x-auto no-scrollbar snap-x">
+              <div className="flex space-x-4 overflow-x-auto no-scrollbar snap-x pb-4">
                 {searchResults.albums.slice(0, 5).map(album => (
                   <div key={album.id} onClick={() => playAlbum(album)} className="flex-shrink-0 w-64 snap-start cursor-pointer active:scale-95 transition-transform">
-                    <img src={album.cover} className="w-full aspect-square rounded-2xl object-cover shadow-lg mb-3" />
+                    <img src={album.cover} className="w-full aspect-square rounded-2xl object-cover shadow-lg mb-3" alt={album.title} />
                     <h4 className="font-bold text-sm truncate">{album.title}</h4>
                     <p className="text-gray-400 text-xs font-medium uppercase">{album.artist}</p>
                   </div>
@@ -251,11 +235,11 @@ const App = () => {
             <section>
               <h2 className="text-xl font-bold mb-4">Made For You</h2>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-pink-500 to-orange-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg active:scale-95 transition-transform cursor-pointer">
+                <div className="bg-gradient-to-br from-pink-500 to-orange-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg cursor-pointer">
                   <Star fill="white" className="mb-auto" />
                   <p className="font-black text-lg">Favorites Mix</p>
                 </div>
-                <div className="bg-gradient-to-br from-blue-600 to-cyan-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg active:scale-95 transition-transform cursor-pointer">
+                <div className="bg-gradient-to-br from-blue-600 to-cyan-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg cursor-pointer">
                   <TrendingUp className="mb-auto" />
                   <p className="font-black text-lg">Discovery</p>
                 </div>
@@ -263,50 +247,25 @@ const App = () => {
             </section>
           </div>
         )}
+
         {view === 'search' && (
-          <div className="p-6">
-            <div className="grid grid-cols-2 gap-6">
-              {searchResults.albums.map(album => (
-                <div key={album.id} onClick={() => playAlbum(album)} className="space-y-2 cursor-pointer active:scale-95 transition-transform">
-                  <img src={album.cover} className="w-full aspect-square rounded-2xl shadow-md object-cover" />
-                  <h4 className="font-bold text-xs truncate">{album.title}</h4>
-                  <p className="text-[10px] text-pink-500 font-bold">{album.artist}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {view === 'artist' && selectedArtist && (
-          <div className="px-6 pt-2 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex flex-col items-center text-center mb-8">
-              <div className="w-40 h-40 bg-gray-100 rounded-full mb-4 shadow-2xl overflow-hidden">
-                <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${selectedArtist.name}`} className="w-full h-full" />
-              </div>
-              <h2 className="text-4xl font-black mb-1">{selectedArtist.name}</h2>
-              <p className="text-pink-500 font-bold mb-6">Artist</p>
-              <button onClick={() => playAlbum(selectedArtist.items[0])} className="bg-gray-100 text-pink-500 px-10 py-3 rounded-xl font-bold text-sm flex items-center active:scale-95 transition-all">
-                <Play size={18} fill="currentColor" className="mr-2" /> Play
-              </button>
-            </div>
-            {selectedArtist.items.map((item, idx) => (
-              <div key={item.id} className="flex items-center py-3 border-b border-gray-50 active:bg-gray-50 px-2 rounded-xl transition-colors" onClick={() => playAlbum(item)}>
-                <span className="text-gray-300 font-bold w-6 text-xs">{idx + 1}</span>
-                <img src={item.cover} className="w-12 h-12 rounded-lg object-cover shadow-sm mr-4" />
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-bold truncate">{item.title}</h4>
-                  <p className="text-[10px] text-gray-400">{item.downloads} Plays</p>
-                </div>
+          <div className="grid grid-cols-2 gap-6 mt-6 pb-10">
+            {searchResults.albums.map(album => (
+              <div key={album.id} onClick={() => playAlbum(album)} className="space-y-2 cursor-pointer active:scale-95 transition-transform">
+                <img src={album.cover} className="w-full aspect-square rounded-2xl shadow-md object-cover" alt={album.title} />
+                <h4 className="font-bold text-xs truncate">{album.title}</h4>
+                <p className="text-[10px] text-pink-500 font-bold">{album.artist}</p>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </main>
 
       {/* Mini Player */}
       {currentTrack && !isFullPlayerOpen && (
-        <div onClick={() => setIsFullPlayerOpen(true)} className="fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-3xl border border-gray-200 rounded-2xl shadow-2xl z-40 flex flex-col p-3 animate-in slide-in-from-bottom-8 cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => setIsFullPlayerOpen(true)} className="fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-3xl border border-gray-200 rounded-2xl shadow-2xl z-40 flex flex-col p-3 animate-in slide-in-from-bottom-8 cursor-pointer">
           <div className="flex items-center w-full">
-            <img src={currentTrack.cover} className="w-10 h-10 rounded-lg shadow-sm mr-3" />
+            <img src={currentTrack.cover} className="w-10 h-10 rounded-lg shadow-sm mr-3" alt="cover" />
             <div className="flex-1 min-w-0 mr-2">
               <h4 className="font-bold text-[11px] truncate">{currentTrack.title}</h4>
               <p className="text-pink-500 text-[9px] font-bold uppercase truncate">{currentTrack.artist}</p>
@@ -319,7 +278,7 @@ const App = () => {
             </div>
           </div>
           <div className="absolute top-0 left-3 right-3 h-[2px] bg-gray-100 overflow-hidden">
-             <div className="h-full bg-pink-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+             <div className="h-full bg-pink-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
@@ -327,85 +286,77 @@ const App = () => {
       {/* Full Player */}
       {currentTrack && isFullPlayerOpen && (
         <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden">
-          {/* Subtle Background Layer to prevent "white flash" sensation */}
-          <div className="absolute inset-0 bg-gradient-to-b from-gray-50/50 to-white -z-10" />
-          
-          <div className="pt-16 px-8 flex justify-between items-center relative z-10">
-            <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100/80 backdrop-blur p-2 rounded-full active:scale-90"><ChevronDown size={24} /></button>
-            <button className="bg-gray-100/80 backdrop-blur p-2 rounded-full"><MoreHorizontal size={24} /></button>
+          <div className="pt-16 px-8 flex justify-between items-center">
+            <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100 p-2 rounded-full"><ChevronDown size={24} /></button>
+            <button className="bg-gray-100 p-2 rounded-full"><MoreHorizontal size={24} /></button>
           </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-10 relative z-10">
+          <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-10">
             <div className="w-full max-w-sm aspect-square shadow-3xl rounded-[40px] overflow-hidden border border-gray-100">
-              <img src={currentTrack.cover} className="w-full h-full object-cover" />
+              <img src={currentTrack.cover} className="w-full h-full object-cover" alt="Album Art" />
             </div>
-
             <div className="w-full flex justify-between items-end">
               <div className="min-w-0 pr-4">
                 <h2 className="text-3xl font-black line-clamp-2 leading-tight tracking-tighter">{currentTrack.title}</h2>
                 <p className="text-pink-500 text-xl font-bold">{currentTrack.artist}</p>
               </div>
-              <button onClick={() => toggleFavorite(currentTrack)} className={`p-3 rounded-full transition-all ${favorites.some(f => f.title === currentTrack.title) ? 'text-pink-500 bg-pink-50 shadow-sm' : 'text-gray-200 bg-gray-50'}`}>
+              <button onClick={() => toggleFavorite(currentTrack)} className={`p-3 rounded-full ${favorites.some(f => f.title === currentTrack.title) ? 'text-pink-500 bg-pink-50' : 'text-gray-200 bg-gray-50'}`}>
                 <Heart size={24} fill={favorites.some(f => f.title === currentTrack.title) ? "currentColor" : "none"} />
               </button>
             </div>
-
             <div className="w-full space-y-3">
-              <input type="range" className="w-full h-1.5 bg-gray-200 rounded-full appearance-none accent-pink-500" min="0" max="100" step="0.1" value={progress} onChange={seek} />
+              <input type="range" className="w-full h-1.5 bg-gray-200 rounded-full appearance-none accent-pink-500 cursor-pointer" min="0" max="100" step="0.1" value={progress} onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (audioRef.current?.duration) audioRef.current.currentTime = (val / 100) * audioRef.current.duration;
+              }} />
               <div className="flex justify-between text-[11px] font-black text-gray-400 tabular-nums">
                 <span>{formatTime(audioRef.current?.currentTime)}</span>
                 <span>-{formatTime((audioRef.current?.duration || 0) - (audioRef.current?.currentTime || 0))}</span>
               </div>
             </div>
-
             <div className="w-full flex justify-around items-center">
-              <button onClick={handlePrev} className="p-4 active:scale-90 text-black"><SkipBack size={48} fill="currentColor" /></button>
+              <button onClick={handlePrev} className="p-4 active:scale-90"><SkipBack size={48} fill="currentColor" /></button>
               <button onClick={togglePlay} className="p-10 bg-black rounded-full text-white active:scale-95 shadow-2xl">
                 {isPlaying ? <Pause size={56} fill="currentColor" /> : <Play size={56} fill="currentColor" className="ml-2" />}
               </button>
-              <button onClick={handleNext} className="p-4 active:scale-90 text-black"><SkipForward size={48} fill="currentColor" /></button>
+              <button onClick={handleNext} className="p-4 active:scale-90"><SkipForward size={48} fill="currentColor" /></button>
             </div>
-
             <div className="w-full flex items-center space-x-4">
               <Volume2 size={14} className="text-gray-300" />
-              <input type="range" className="flex-1 h-1 bg-gray-200 rounded-full appearance-none accent-gray-400" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
+              <input type="range" className="flex-1 h-1 bg-gray-200 rounded-full appearance-none accent-gray-400 cursor-pointer" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
               <Volume2 size={20} className="text-gray-300" />
             </div>
           </div>
-
-          <div className="h-32 flex justify-around items-center px-10 text-gray-300 relative z-10 border-t border-gray-50/50">
+          <div className="h-32 flex justify-around items-center px-10 text-gray-300">
              <button className="p-2"><Music size={24} /></button>
-             <button onClick={toggleLoop} className={`p-2 transition-colors ${loopMode !== 'none' ? 'text-pink-500' : ''}`}>
+             <button onClick={toggleLoop} className={`p-2 ${loopMode !== 'none' ? 'text-pink-500' : ''}`}>
                {loopMode === 'one' ? <Repeat1 size={24} /> : <Repeat size={24} />}
              </button>
-             <button onClick={() => setIsShuffle(!isShuffle)} className={`p-2 transition-colors ${isShuffle ? 'text-pink-500' : ''}`}><Shuffle size={24} /></button>
+             <button onClick={() => setIsShuffle(!isShuffle)} className={`p-2 ${isShuffle ? 'text-pink-500' : ''}`}><Shuffle size={24} /></button>
              <button className="p-2"><List size={24} /></button>
           </div>
         </div>
       )}
 
       {/* Tab Bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-white/90 backdrop-blur-2xl border-t border-gray-50 flex justify-around items-center px-6 z-30">
+      <nav className="fixed bottom-0 left-0 right-0 h-24 bg-white/90 backdrop-blur-2xl border-t border-gray-50 flex justify-around items-center px-6 z-30">
         <TabItem icon={<Home size={24} />} label="Home" active={view === 'home'} onClick={() => setView('home')} />
         <TabItem icon={<Compass size={24} />} label="Browse" active={view === 'browse'} onClick={() => setView('browse')} />
         <TabItem icon={<Radio size={24} />} label="Radio" active={view === 'radio'} onClick={() => setView('radio')} />
         <TabItem icon={<Library size={24} />} label="Library" active={view === 'library'} onClick={() => setView('library')} />
         <TabItem icon={<Search size={24} />} label="Search" active={view === 'search'} onClick={() => setView('search')} />
-      </div>
+      </nav>
 
       <audio 
         ref={audioRef} 
         src={currentTrack?.audioUrl} 
         onTimeUpdate={() => { 
-          if(audioRef.current && audioRef.current.duration) {
-            setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
-          }
+          if(audioRef.current?.duration) setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
         }} 
         onEnded={handleNext}
         autoPlay 
       />
       {loading && (
-        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm z-[200] flex items-center justify-center">
+        <div className="fixed inset-0 bg-white/20 backdrop-blur-sm z-[200] flex items-center justify-center">
           <div className="w-10 h-10 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
