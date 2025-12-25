@@ -89,32 +89,6 @@ const App = () => {
     }
   };
 
-  const openArtistPage = async (artistName) => {
-    setLoading(true);
-    setView('artist');
-    try {
-      const q = encodeURIComponent(`creator:"${artistName}" AND mediatype:audio`);
-      const url = `https://archive.org/advancedsearch.php?q=${q}&output=json&rows=20&sort[]=downloads+desc`;
-      const response = await fetch(url);
-      const data = await response.json();
-      const docs = data.response.docs || [];
-      setSelectedArtist({
-        name: artistName,
-        items: docs.map(d => ({
-          id: d.identifier,
-          title: d.title,
-          date: d.date,
-          downloads: d.downloads,
-          cover: `https://archive.org/services/img/${d.identifier}`
-        }))
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const playAlbum = async (item, startIndex = 0) => {
     setLoading(true);
     try {
@@ -155,8 +129,10 @@ const App = () => {
 
   const handleNext = () => {
     if (loopMode === 'one') {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      }
     } else if (queueIndex < queue.length - 1) {
       const nextIndex = queueIndex + 1;
       setQueueIndex(nextIndex);
@@ -181,6 +157,7 @@ const App = () => {
 
   const togglePlay = (e) => {
     e?.stopPropagation();
+    if (!audioRef.current) return;
     if (isPlaying) audioRef.current.pause();
     else audioRef.current.play();
     setIsPlaying(!isPlaying);
@@ -211,7 +188,7 @@ const App = () => {
   };
 
   const formatTime = (time) => {
-    if (!time || isNaN(time) || time === Infinity) return "0:00";
+    if (time === null || time === undefined || isNaN(time) || time === Infinity) return "0:00";
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -327,7 +304,7 @@ const App = () => {
 
       {/* Mini Player */}
       {currentTrack && !isFullPlayerOpen && (
-        <div onClick={() => setIsFullPlayerOpen(true)} className="fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-3xl border border-gray-100 rounded-2xl shadow-2xl z-40 flex flex-col p-3 animate-in slide-in-from-bottom-8 cursor-pointer active:scale-[0.98] transition-all">
+        <div onClick={() => setIsFullPlayerOpen(true)} className="fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-3xl border border-gray-200 rounded-2xl shadow-2xl z-40 flex flex-col p-3 animate-in slide-in-from-bottom-8 cursor-pointer active:scale-[0.98] transition-all">
           <div className="flex items-center w-full">
             <img src={currentTrack.cover} className="w-10 h-10 rounded-lg shadow-sm mr-3" />
             <div className="flex-1 min-w-0 mr-2">
@@ -338,61 +315,70 @@ const App = () => {
               <button onClick={togglePlay} className="p-2 text-black active:scale-90 transition-transform">
                 {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
               </button>
-              <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="p-2 text-gray-300"><SkipForward size={24} fill="currentColor" /></button>
+              <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="p-2 text-gray-400"><SkipForward size={24} fill="currentColor" /></button>
             </div>
           </div>
-          <div className="absolute top-0 left-3 right-3 h-[2px] bg-gray-50 overflow-hidden">
-             <div className="h-full bg-pink-500" style={{ width: `${progress}%` }} />
+          <div className="absolute top-0 left-3 right-3 h-[2px] bg-gray-100 overflow-hidden">
+             <div className="h-full bg-pink-500 transition-all duration-300" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
 
-      {/* Full Player - Fixed White Screen issue */}
+      {/* Full Player */}
       {currentTrack && isFullPlayerOpen && (
         <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden">
-          <div className="pt-16 px-8 flex justify-between items-center">
-            <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100 p-2 rounded-full active:scale-90"><ChevronDown size={24} /></button>
-            <button className="bg-gray-100 p-2 rounded-full"><MoreHorizontal size={24} /></button>
+          {/* Subtle Background Layer to prevent "white flash" sensation */}
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-50/50 to-white -z-10" />
+          
+          <div className="pt-16 px-8 flex justify-between items-center relative z-10">
+            <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100/80 backdrop-blur p-2 rounded-full active:scale-90"><ChevronDown size={24} /></button>
+            <button className="bg-gray-100/80 backdrop-blur p-2 rounded-full"><MoreHorizontal size={24} /></button>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-10">
-            <div className="w-full max-w-sm aspect-square shadow-3xl rounded-[40px] overflow-hidden">
+
+          <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-10 relative z-10">
+            <div className="w-full max-w-sm aspect-square shadow-3xl rounded-[40px] overflow-hidden border border-gray-100">
               <img src={currentTrack.cover} className="w-full h-full object-cover" />
             </div>
+
             <div className="w-full flex justify-between items-end">
               <div className="min-w-0 pr-4">
                 <h2 className="text-3xl font-black line-clamp-2 leading-tight tracking-tighter">{currentTrack.title}</h2>
                 <p className="text-pink-500 text-xl font-bold">{currentTrack.artist}</p>
               </div>
-              <button onClick={() => toggleFavorite(currentTrack)} className={`p-3 rounded-full ${favorites.some(f => f.title === currentTrack.title) ? 'text-pink-500 bg-pink-50' : 'text-gray-200 bg-gray-50'}`}>
+              <button onClick={() => toggleFavorite(currentTrack)} className={`p-3 rounded-full transition-all ${favorites.some(f => f.title === currentTrack.title) ? 'text-pink-500 bg-pink-50 shadow-sm' : 'text-gray-200 bg-gray-50'}`}>
                 <Heart size={24} fill={favorites.some(f => f.title === currentTrack.title) ? "currentColor" : "none"} />
               </button>
             </div>
+
             <div className="w-full space-y-3">
-              <input type="range" className="w-full h-1.5 bg-gray-100 rounded-full appearance-none accent-pink-500" min="0" max="100" step="0.1" value={progress} onChange={seek} />
-              <div className="flex justify-between text-[11px] font-black text-gray-400">
+              <input type="range" className="w-full h-1.5 bg-gray-200 rounded-full appearance-none accent-pink-500" min="0" max="100" step="0.1" value={progress} onChange={seek} />
+              <div className="flex justify-between text-[11px] font-black text-gray-400 tabular-nums">
                 <span>{formatTime(audioRef.current?.currentTime)}</span>
                 <span>-{formatTime((audioRef.current?.duration || 0) - (audioRef.current?.currentTime || 0))}</span>
               </div>
             </div>
+
             <div className="w-full flex justify-around items-center">
-              <button onClick={handlePrev} className="p-4 active:scale-90"><SkipBack size={48} fill="currentColor" /></button>
+              <button onClick={handlePrev} className="p-4 active:scale-90 text-black"><SkipBack size={48} fill="currentColor" /></button>
               <button onClick={togglePlay} className="p-10 bg-black rounded-full text-white active:scale-95 shadow-2xl">
                 {isPlaying ? <Pause size={56} fill="currentColor" /> : <Play size={56} fill="currentColor" className="ml-2" />}
               </button>
-              <button onClick={handleNext} className="p-4 active:scale-90"><SkipForward size={48} fill="currentColor" /></button>
+              <button onClick={handleNext} className="p-4 active:scale-90 text-black"><SkipForward size={48} fill="currentColor" /></button>
             </div>
+
             <div className="w-full flex items-center space-x-4">
               <Volume2 size={14} className="text-gray-300" />
-              <input type="range" className="flex-1 h-1 bg-gray-100 rounded-full appearance-none accent-gray-400" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
+              <input type="range" className="flex-1 h-1 bg-gray-200 rounded-full appearance-none accent-gray-400" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
               <Volume2 size={20} className="text-gray-300" />
             </div>
           </div>
-          <div className="h-32 flex justify-around items-center px-10 text-gray-300">
+
+          <div className="h-32 flex justify-around items-center px-10 text-gray-300 relative z-10 border-t border-gray-50/50">
              <button className="p-2"><Music size={24} /></button>
-             <button onClick={toggleLoop} className={`p-2 ${loopMode !== 'none' ? 'text-pink-500' : ''}`}>
+             <button onClick={toggleLoop} className={`p-2 transition-colors ${loopMode !== 'none' ? 'text-pink-500' : ''}`}>
                {loopMode === 'one' ? <Repeat1 size={24} /> : <Repeat size={24} />}
              </button>
-             <button onClick={() => setIsShuffle(!isShuffle)} className={`p-2 ${isShuffle ? 'text-pink-500' : ''}`}><Shuffle size={24} /></button>
+             <button onClick={() => setIsShuffle(!isShuffle)} className={`p-2 transition-colors ${isShuffle ? 'text-pink-500' : ''}`}><Shuffle size={24} /></button>
              <button className="p-2"><List size={24} /></button>
           </div>
         </div>
@@ -410,7 +396,11 @@ const App = () => {
       <audio 
         ref={audioRef} 
         src={currentTrack?.audioUrl} 
-        onTimeUpdate={() => { if(audioRef.current?.duration) setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100) }} 
+        onTimeUpdate={() => { 
+          if(audioRef.current && audioRef.current.duration) {
+            setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+          }
+        }} 
         onEnded={handleNext}
         autoPlay 
       />
