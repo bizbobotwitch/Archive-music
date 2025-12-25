@@ -37,25 +37,37 @@ const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(80);
-  const [audioQuality, setAudioQuality] = useState('high');
   const [loopMode, setLoopMode] = useState('none'); 
   const [isShuffle, setIsShuffle] = useState(false);
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
-  const [favorites, setFavorites] = useState([]);
   
   const audioRef = useRef(null);
 
-  // Initial load
+  // Initial Data Fetch
   useEffect(() => {
     fetchSmartResults('popular music');
   }, []);
 
-  // Sync volume
+  // Sync Volume
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume / 100;
     }
   }, [volume]);
+
+  // Robust Playback Control
+  useEffect(() => {
+    if (!audioRef.current || !currentTrack) return;
+    
+    if (isPlaying) {
+      audioRef.current.play().catch(() => {
+        // Handle auto-play block
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, currentTrack]);
 
   const fetchSmartResults = async (q) => {
     if (!q) return;
@@ -69,15 +81,15 @@ const App = () => {
 
       const albums = docs.map(item => ({
         id: item.identifier,
-        title: item.title || 'Unknown Title',
-        artist: item.creator || 'Archive Artist',
+        title: item.title || 'Archive Item',
+        artist: item.creator || 'Various Artists',
         cover: `https://archive.org/services/img/${item.identifier}`
       }));
       
-      setSearchResults(prev => ({ ...prev, albums }));
+      setSearchResults({ albums });
       if (view !== 'search' && q !== 'popular music') setView('search');
     } catch (err) {
-      console.error("Fetch Error:", err);
+      console.error("Search failed", err);
     } finally {
       setLoading(false);
     }
@@ -89,7 +101,7 @@ const App = () => {
       const res = await fetch(`https://archive.org/metadata/${item.id}`);
       const data = await res.json();
       const audioFiles = data.files.filter(f => 
-        f.format === 'VBR MP3' || f.format === 'MP3' || f.format === 'FLAC'
+        (f.format === 'VBR MP3' || f.format === 'MP3' || f.format === 'FLAC')
       );
       
       if (audioFiles.length > 0) {
@@ -98,8 +110,7 @@ const App = () => {
           title: file.title || file.name.replace(/\.[^/.]+$/, ""),
           artist: item.artist || data.metadata.creator || 'Archive',
           fileName: file.name,
-          cover: `https://archive.org/services/img/${item.id}`,
-          format: file.format
+          cover: `https://archive.org/services/img/${item.id}`
         }));
 
         if (isShuffle) albumTracks = [...albumTracks].sort(() => Math.random() - 0.5);
@@ -109,28 +120,24 @@ const App = () => {
         loadTrack(albumTracks[0]);
       }
     } catch (err) {
-      console.error("Metadata Error:", err);
+      console.error("Metadata load failed", err);
     } finally {
       setLoading(false);
     }
   };
 
   const loadTrack = (track) => {
-    if (!track) return;
-    const directUrl = `https://archive.org/download/${track.id}/${encodeURIComponent(track.fileName)}`;
-    setCurrentTrack({ ...track, audioUrl: directUrl });
+    const url = `https://archive.org/download/${track.id}/${encodeURIComponent(track.fileName)}`;
+    setCurrentTrack({ ...track, audioUrl: url });
     setIsPlaying(true);
     setProgress(0);
   };
 
   const handleNext = () => {
-    if (loopMode === 'one' && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
-    } else if (queueIndex < queue.length - 1) {
-      const nextIdx = queueIndex + 1;
-      setQueueIndex(nextIdx);
-      loadTrack(queue[nextIdx]);
+    if (queueIndex < queue.length - 1) {
+      const next = queueIndex + 1;
+      setQueueIndex(next);
+      loadTrack(queue[next]);
     } else if (loopMode === 'all' && queue.length > 0) {
       setQueueIndex(0);
       loadTrack(queue[0]);
@@ -140,21 +147,13 @@ const App = () => {
   };
 
   const handlePrev = () => {
-    if (audioRef.current && audioRef.current.currentTime > 3) {
+    if (audioRef.current?.currentTime > 3) {
       audioRef.current.currentTime = 0;
     } else if (queueIndex > 0) {
-      const prevIdx = queueIndex - 1;
-      setQueueIndex(prevIdx);
-      loadTrack(queue[prevIdx]);
+      const prev = queueIndex - 1;
+      setQueueIndex(prev);
+      loadTrack(queue[prev]);
     }
-  };
-
-  const togglePlay = (e) => {
-    e?.stopPropagation();
-    if (!audioRef.current) return;
-    if (isPlaying) audioRef.current.pause();
-    else audioRef.current.play().catch(e => console.log("Play interrupted"));
-    setIsPlaying(!isPlaying);
   };
 
   const formatTime = (time) => {
@@ -164,296 +163,159 @@ const App = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const NavItem = ({ icon, label, id }) => (
-    <button 
-      onClick={() => setView(id)}
-      className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${
-        view === id ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'
-      }`}
-    >
-      {icon}
-      <span className="font-bold text-sm hidden lg:block">{label}</span>
-    </button>
-  );
-
   return (
-    <div className="h-screen w-full bg-white text-black font-sans flex flex-col lg:flex-row overflow-hidden select-none">
+    <div className="flex flex-col h-screen w-full bg-white text-black font-sans overflow-hidden">
       
-      {/* SIDEBAR (Desktop) */}
-      <aside className="hidden lg:flex flex-col w-64 border-r border-gray-100 p-6 space-y-8 bg-white z-50">
-        <div className="flex items-center space-x-2 px-4 mb-4">
-          <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
-            <Music className="text-white" size={18} />
-          </div>
-          <span className="font-black text-xl tracking-tighter">SmartArchive</span>
-        </div>
+      {/* MAIN CONTENT WRAPPER */}
+      <div className="flex flex-1 overflow-hidden">
         
-        <div className="space-y-1">
-          <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Discover</p>
-          <NavItem id="home" label="Listen Now" icon={<Home size={20} />} />
-          <NavItem id="browse" label="Browse" icon={<Compass size={20} />} />
-          <NavItem id="search" label="Search" icon={<Search size={20} />} />
-        </div>
-
-        <div className="space-y-1">
-          <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Library</p>
-          <NavItem id="library" label="Your Library" icon={<Library size={20} />} />
-          <NavItem id="liked" label="Favorites" icon={<Heart size={20} />} />
-        </div>
-      </aside>
-
-      {/* MAIN VIEW */}
-      <div className="flex-1 flex flex-col relative min-w-0">
-        
-        {/* HEADER */}
-        <header className="px-6 py-4 lg:py-8 bg-white/90 backdrop-blur-md border-b border-gray-50 flex items-center justify-between sticky top-0 z-40">
-          <div className="flex items-center space-x-4">
-            {view !== 'home' && (
-              <button onClick={() => setView('home')} className="lg:hidden text-pink-500">
-                <ChevronLeft size={28} />
-              </button>
-            )}
-            <h1 className="text-2xl font-black tracking-tight capitalize">{view === 'home' ? 'Listen Now' : view}</h1>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="hidden md:flex relative w-64 xl:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input 
-                type="text"
-                placeholder="Search Archive..."
-                className="w-full bg-gray-50 py-2 pl-10 pr-4 rounded-full text-sm outline-none ring-1 ring-transparent focus:ring-pink-100 transition-all"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
-              />
+        {/* SIDEBAR (Desktop Only) */}
+        <aside className="hidden lg:flex flex-col w-64 border-r border-gray-100 p-6 bg-white overflow-y-auto">
+          <div className="flex items-center space-x-2 px-2 mb-8">
+            <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
+              <Music className="text-white" size={18} />
             </div>
-            <button className="p-2 text-gray-400 hover:text-black transition-colors">
-              <Zap size={20} fill={audioQuality === 'lossless' ? 'currentColor' : 'none'} />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-orange-400 shadow-sm" />
+            <span className="font-black text-xl tracking-tighter">SmartArchive</span>
           </div>
-        </header>
+          
+          <nav className="space-y-1">
+            <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Discover</p>
+            <button onClick={() => setView('home')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'home' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <Home size={20} /><span className="font-bold text-sm">Listen Now</span>
+            </button>
+            <button onClick={() => setView('browse')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'browse' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <Compass size={20} /><span className="font-bold text-sm">Browse</span>
+            </button>
+            <button onClick={() => setView('search')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'search' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <Search size={20} /><span className="font-bold text-sm">Search</span>
+            </button>
+            
+            <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mt-8 mb-4">Library</p>
+            <button onClick={() => setView('library')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'library' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <Library size={20} /><span className="font-bold text-sm">Library</span>
+            </button>
+          </nav>
+        </aside>
 
-        {/* CONTENT */}
-        <main className="flex-1 overflow-y-auto px-6 pt-6 pb-40">
-          {view === 'search' && (
-            <div className="md:hidden mb-6">
-               <div className="relative">
+        {/* MAIN DISPLAY */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white">
+          <header className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
+            <h1 className="text-2xl font-black tracking-tight capitalize">{view === 'home' ? 'Listen Now' : view}</h1>
+            <div className="flex items-center space-x-4">
+              <div className="hidden md:flex relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input 
-                  type="text"
-                  placeholder="Artists, Songs..."
-                  className="w-full bg-gray-100 py-3 pl-10 pr-4 rounded-xl text-sm outline-none"
+                  type="text" placeholder="Search..."
+                  className="w-full bg-gray-50 py-2 pl-10 pr-4 rounded-full text-sm outline-none border border-transparent focus:border-pink-100"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
                 />
               </div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-orange-400" />
             </div>
-          )}
+          </header>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-            {searchResults.albums.map((album) => (
-              <div 
-                key={album.id} 
-                onClick={() => playAlbum(album)}
-                className="group cursor-pointer space-y-3 active:scale-95 transition-transform"
-              >
-                <div className="relative aspect-square rounded-2xl overflow-hidden shadow-lg bg-gray-100">
-                  <img src={album.cover} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="bg-white/90 p-4 rounded-full shadow-2xl">
-                      <Play size={24} fill="black" />
+          <main className="flex-1 overflow-y-auto p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+              {searchResults.albums.map((album) => (
+                <div key={album.id} onClick={() => playAlbum(album)} className="group cursor-pointer space-y-3 active:scale-95 transition-transform">
+                  <div className="relative aspect-square rounded-2xl overflow-hidden shadow-md bg-gray-100">
+                    <img src={album.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="" />
+                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="bg-white p-3 rounded-full shadow-lg"><Play size={20} fill="black" /></div>
                     </div>
                   </div>
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm truncate">{album.title}</h4>
-                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide truncate">{album.artist}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {searchResults.albums.length === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-300">
-              <Music size={64} strokeWidth={1} className="mb-4" />
-              <p className="font-bold">Search the Internet Archive</p>
-            </div>
-          )}
-        </main>
-
-        {/* PLAYER (Mobile Mini / Desktop Bottom) */}
-        {currentTrack && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-2xl border-t border-gray-100 z-[60]">
-            
-            {/* ProgressBar */}
-            <div className="h-1 w-full bg-gray-100 overflow-hidden group cursor-pointer" onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pos = (e.clientX - rect.left) / rect.width;
-              if (audioRef.current) audioRef.current.currentTime = pos * audioRef.current.duration;
-            }}>
-              <div className="h-full bg-pink-500 transition-all duration-100" style={{ width: `${progress}%` }} />
-            </div>
-
-            <div className="h-20 lg:h-24 px-6 flex items-center justify-between max-w-[1800px] mx-auto">
-              
-              {/* Track Info */}
-              <div className="flex items-center space-x-4 w-1/3 min-w-0" onClick={() => setIsFullPlayerOpen(true)}>
-                <img src={currentTrack.cover} className="w-12 h-12 lg:w-16 lg:h-16 rounded-lg shadow-sm flex-none object-cover" alt="" />
-                <div className="min-w-0 overflow-hidden">
-                  <h4 className="font-bold text-sm lg:text-base truncate leading-tight">{currentTrack.title}</h4>
-                  <p className="text-pink-500 text-xs font-bold truncate uppercase">{currentTrack.artist}</p>
-                </div>
-                <button className="text-gray-200 hover:text-pink-500 ml-2 hidden sm:block">
-                  <Heart size={18} />
-                </button>
-              </div>
-
-              {/* Controls */}
-              <div className="flex flex-col items-center justify-center flex-1 px-4 lg:px-10">
-                <div className="flex items-center space-x-6 lg:space-x-8">
-                  <button onClick={() => setIsShuffle(!isShuffle)} className={`hidden md:block transition-colors ${isShuffle ? 'text-pink-500' : 'text-gray-300'}`}>
-                    <Shuffle size={18} />
-                  </button>
-                  <button onClick={handlePrev} className="text-black active:scale-90 transition-transform">
-                    <SkipBack size={24} fill="currentColor" />
-                  </button>
-                  <button onClick={togglePlay} className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl">
-                    {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
-                  </button>
-                  <button onClick={handleNext} className="text-black active:scale-90 transition-transform">
-                    <SkipForward size={24} fill="currentColor" />
-                  </button>
-                  <button onClick={() => setLoopMode(l => l === 'all' ? 'one' : l === 'one' ? 'none' : 'all')} className={`hidden md:block transition-colors ${loopMode !== 'none' ? 'text-pink-500' : 'text-gray-300'}`}>
-                    {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
-                  </button>
-                </div>
-                <div className="hidden lg:flex items-center w-full max-w-md mt-2 space-x-3 text-[10px] font-bold text-gray-400 tabular-nums">
-                  <span>{formatTime(audioRef.current?.currentTime)}</span>
-                  <div className="flex-1 h-[2px] bg-gray-100 rounded-full relative overflow-hidden">
-                    <div className="absolute inset-y-0 left-0 bg-pink-500" style={{ width: `${progress}%` }} />
+                  <div>
+                    <h4 className="font-bold text-sm truncate">{album.title}</h4>
+                    <p className="text-gray-400 text-xs truncate uppercase font-semibold">{album.artist}</p>
                   </div>
-                  <span>{formatTime(audioRef.current?.duration)}</span>
                 </div>
-              </div>
-
-              {/* Volume (Desktop) */}
-              <div className="hidden md:flex items-center justify-end w-1/3 space-x-4">
-                <div className="flex items-center space-x-2 w-32">
-                  <Volume2 size={18} className="text-gray-400 flex-none" />
-                  <input 
-                    type="range" className="w-full h-1 bg-gray-100 rounded-full appearance-none accent-gray-500 cursor-pointer" 
-                    min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} 
-                  />
-                </div>
-                <button className="text-gray-400"><List size={18} /></button>
-              </div>
+              ))}
             </div>
-          </div>
-        )}
-
-        {/* MOBILE NAV (Hidden on PC) */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex justify-around items-center px-6 z-50">
-          <button onClick={() => setView('home')} className={`flex flex-col items-center ${view === 'home' ? 'text-pink-500' : 'text-gray-400'}`}>
-            <Home size={22} /><span className="text-[10px] mt-1 font-bold">Home</span>
-          </button>
-          <button onClick={() => setView('browse')} className={`flex flex-col items-center ${view === 'browse' ? 'text-pink-500' : 'text-gray-400'}`}>
-            <Compass size={22} /><span className="text-[10px] mt-1 font-bold">Browse</span>
-          </button>
-          <button onClick={() => setView('search')} className={`flex flex-col items-center ${view === 'search' ? 'text-pink-500' : 'text-gray-400'}`}>
-            <Search size={22} /><span className="text-[10px] mt-1 font-bold">Search</span>
-          </button>
-          <button onClick={() => setView('library')} className={`flex flex-col items-center ${view === 'library' ? 'text-pink-500' : 'text-gray-400'}`}>
-            <Library size={22} /><span className="text-[10px] mt-1 font-bold">Library</span>
-          </button>
-        </nav>
+            
+            {loading && (
+              <div className="flex justify-center py-20">
+                <div className="w-8 h-8 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </main>
+        </div>
       </div>
 
-      {/* FULL SCREEN PLAYER (Mobile Only) */}
-      {currentTrack && isFullPlayerOpen && (
-        <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-in slide-in-from-bottom duration-500 lg:hidden overflow-hidden">
-          <header className="px-8 pt-16 pb-6 flex justify-between items-center">
-            <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100 p-2 rounded-full"><ChevronDown size={24} /></button>
-            <div className="text-center">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Playing From Album</p>
-              <h5 className="font-bold text-xs truncate max-w-[200px]">{currentTrack.title}</h5>
-            </div>
-            <button className="bg-gray-100 p-2 rounded-full"><MoreHorizontal size={24} /></button>
-          </header>
-          
-          <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-12">
-            <div className="w-full aspect-square max-w-[320px] rounded-[40px] shadow-3xl overflow-hidden border border-gray-100">
-              <img src={currentTrack.cover} className="w-full h-full object-cover" alt="" />
-            </div>
+      {/* PLAYER BAR (Static Flex Bottom) */}
+      {currentTrack && (
+        <div className="border-t border-gray-100 bg-white/95 backdrop-blur-xl px-6 py-3 lg:py-4 z-40">
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
             
-            <div className="w-full flex justify-between items-end">
-              <div className="min-w-0 pr-4">
-                <h2 className="text-3xl font-black tracking-tighter leading-none line-clamp-2">{currentTrack.title}</h2>
-                <p className="text-pink-500 text-xl font-bold mt-2">{currentTrack.artist}</p>
+            {/* Track Info */}
+            <div className="flex items-center space-x-3 w-1/3 min-w-0" onClick={() => setIsFullPlayerOpen(true)}>
+              <img src={currentTrack.cover} className="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm" alt="" />
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm truncate">{currentTrack.title}</h4>
+                <p className="text-pink-500 text-[10px] font-black uppercase truncate">{currentTrack.artist}</p>
               </div>
-              <button className="p-3 bg-pink-50 text-pink-500 rounded-full">
-                <Heart size={24} />
-              </button>
             </div>
 
-            <div className="w-full space-y-3">
-              <input 
-                type="range" className="w-full h-1.5 bg-gray-100 rounded-full appearance-none accent-pink-500" 
-                min="0" max="100" step="0.1" value={progress}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  if (audioRef.current?.duration) audioRef.current.currentTime = (val / 100) * audioRef.current.duration;
-                }}
-              />
-              <div className="flex justify-between text-[11px] font-black text-gray-400 tabular-nums">
+            {/* Controls */}
+            <div className="flex flex-col items-center flex-1">
+              <div className="flex items-center space-x-6">
+                <button onClick={handlePrev} className="text-black hover:text-pink-500"><SkipBack size={20} fill="currentColor" /></button>
+                <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform">
+                  {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+                </button>
+                <button onClick={handleNext} className="text-black hover:text-pink-500"><SkipForward size={20} fill="currentColor" /></button>
+              </div>
+              <div className="hidden lg:flex items-center w-full max-w-sm mt-2 space-x-2 text-[10px] font-bold text-gray-400">
                 <span>{formatTime(audioRef.current?.currentTime)}</span>
-                <span>-{formatTime((audioRef.current?.duration || 0) - (audioRef.current?.currentTime || 0))}</span>
+                <div className="flex-1 h-1 bg-gray-100 rounded-full relative overflow-hidden">
+                  <div className="absolute inset-y-0 left-0 bg-pink-500" style={{ width: `${progress}%` }} />
+                </div>
+                <span>{formatTime(audioRef.current?.duration)}</span>
               </div>
             </div>
 
-            <div className="w-full flex justify-around items-center">
-              <button onClick={handlePrev} className="p-4 active:scale-90"><SkipBack size={42} fill="currentColor" /></button>
-              <button onClick={togglePlay} className="p-10 bg-black text-white rounded-full shadow-2xl active:scale-95">
-                {isPlaying ? <Pause size={48} fill="currentColor" /> : <Play size={48} fill="currentColor" className="ml-2" />}
-              </button>
-              <button onClick={handleNext} className="p-4 active:scale-90"><SkipForward size={42} fill="currentColor" /></button>
+            {/* Volume */}
+            <div className="hidden md:flex items-center justify-end w-1/3 space-x-4">
+              <div className="flex items-center space-x-2 w-24">
+                <Volume2 size={16} className="text-gray-400" />
+                <input 
+                  type="range" className="w-full h-1 bg-gray-100 rounded-full appearance-none accent-pink-500 cursor-pointer" 
+                  min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} 
+                />
+              </div>
+              <button className="text-gray-400"><List size={18} /></button>
             </div>
           </div>
-
-          <footer className="h-32 flex justify-around items-center px-10 text-gray-300">
-            <button className="p-2"><Music size={24} /></button>
-            <button onClick={() => setLoopMode(l => l === 'all' ? 'one' : l === 'one' ? 'none' : 'all')} className={loopMode !== 'none' ? 'text-pink-500' : ''}>
-              {loopMode === 'one' ? <Repeat1 size={24} /> : <Repeat size={24} />}
-            </button>
-            <button onClick={() => setIsShuffle(!isShuffle)} className={isShuffle ? 'text-pink-500' : ''}><Shuffle size={24} /></button>
-            <button className="p-2"><List size={24} /></button>
-          </footer>
         </div>
       )}
 
-      {/* AUDIO ENGINE */}
+      {/* MOBILE BOTTOM NAV */}
+      <nav className="lg:hidden h-16 border-t border-gray-50 flex items-center justify-around bg-white px-4 z-40">
+        <button onClick={() => setView('home')} className={`flex flex-col items-center ${view === 'home' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <Home size={20} /><span className="text-[10px] mt-1 font-bold">Home</span>
+        </button>
+        <button onClick={() => setView('search')} className={`flex flex-col items-center ${view === 'search' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <Search size={20} /><span className="text-[10px] mt-1 font-bold">Search</span>
+        </button>
+        <button onClick={() => setView('library')} className={`flex flex-col items-center ${view === 'library' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <Library size={20} /><span className="text-[10px] mt-1 font-bold">Library</span>
+        </button>
+      </nav>
+
+      {/* HIDDEN AUDIO ELEMENT */}
       <audio 
         ref={audioRef}
         src={currentTrack?.audioUrl}
+        crossOrigin="anonymous"
         onTimeUpdate={() => {
           if (audioRef.current?.duration) {
             setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
           }
         }}
         onEnded={handleNext}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        autoPlay
       />
 
-      {/* LOADER */}
-      {loading && (
-        <div className="fixed inset-0 bg-white/40 backdrop-blur-md z-[200] flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
     </div>
   );
 };
