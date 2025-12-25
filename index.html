@@ -23,7 +23,8 @@ import {
   Shuffle,
   Star,
   TrendingUp,
-  History
+  History,
+  Layout
 } from 'lucide-react';
 
 const App = () => {
@@ -178,116 +179,222 @@ const App = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const TabItem = ({ icon, label, active = false, onClick }) => (
-    <div onClick={onClick} className={`flex flex-col items-center space-y-1 cursor-pointer w-16 transition-all ${active ? 'text-pink-500' : 'text-gray-400 hover:text-gray-600'}`}>
+  const SidebarItem = ({ icon, label, active = false, onClick }) => (
+    <div 
+      onClick={onClick} 
+      className={`flex items-center space-x-3 px-4 py-3 cursor-pointer rounded-xl transition-all ${
+        active ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'
+      }`}
+    >
       {icon}
-      <span className="text-[10px] font-bold tracking-tight">{label}</span>
+      <span className="font-bold text-sm">{label}</span>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-white text-black font-sans flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="pt-12 px-6 pb-4 bg-white/95 backdrop-blur-xl border-b border-gray-50 flex-none z-20">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            {(view !== 'home') && (
-              <button onClick={() => setView('home')} className="text-pink-500"><ChevronLeft size={28} /></button>
-            )}
-            <h1 className="text-2xl font-black capitalize tracking-tight">{view === 'artist' ? '' : view}</h1>
+    <div className="fixed inset-0 bg-white text-black font-sans flex overflow-hidden">
+      {/* PC Sidebar - Hidden on Mobile */}
+      <aside className="hidden lg:flex flex-col w-64 border-r border-gray-100 p-6 space-y-8 z-30">
+        <div className="flex items-center space-x-2 px-4 mb-4">
+          <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
+            <Music className="text-white" size={18} />
           </div>
-          <div className="flex items-center space-x-4">
+          <span className="font-black text-xl tracking-tighter">ArchiveMusic</span>
+        </div>
+        
+        <nav className="space-y-1">
+          <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Menu</p>
+          <SidebarItem icon={<Home size={20} />} label="Home" active={view === 'home'} onClick={() => setView('home')} />
+          <SidebarItem icon={<Compass size={20} />} label="Browse" active={view === 'browse'} onClick={() => setView('browse')} />
+          <SidebarItem icon={<Radio size={20} />} label="Radio" active={view === 'radio'} onClick={() => setView('radio')} />
+          <SidebarItem icon={<Search size={20} />} label="Search" active={view === 'search'} onClick={() => setView('search')} />
+        </nav>
+
+        <nav className="space-y-1">
+          <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Your Collection</p>
+          <SidebarItem icon={<Library size={20} />} label="Library" active={view === 'library'} onClick={() => setView('library')} />
+          <SidebarItem icon={<Heart size={20} />} label="Favorites" onClick={() => {}} />
+          <SidebarItem icon={<History size={20} />} label="Recently Played" onClick={() => {}} />
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* Header - Adaptive for Mobile/PC */}
+        <header className="pt-12 lg:pt-8 px-6 pb-4 bg-white/95 backdrop-blur-xl border-b border-gray-50 flex-none z-20 flex flex-col sm:flex-row sm:items-center justify-between">
+          <div className="flex items-center space-x-2">
+            {(view !== 'home' && view !== 'search') && (
+              <button onClick={() => setView('home')} className="text-pink-500 lg:hidden"><ChevronLeft size={28} /></button>
+            )}
+            <h1 className="text-2xl font-black capitalize tracking-tight">
+              {view === 'home' ? 'Listen Now' : view}
+            </h1>
+          </div>
+
+          <div className="flex items-center space-x-4 mt-4 sm:mt-0">
+            {/* Search Bar for PC in Header */}
+            <div className="hidden sm:block relative min-w-[300px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" placeholder="Search artists or albums..." 
+                className="w-full bg-gray-50 py-2 pl-10 pr-4 rounded-xl text-sm focus:outline-none focus:ring-1 ring-pink-100 transition-all"
+                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
+              />
+            </div>
+            
             <button onClick={() => setAudioQuality(q => q === 'lossless' ? 'high' : 'lossless')} className={`p-1 transition-colors ${audioQuality === 'lossless' ? 'text-black' : 'text-gray-300'}`}>
               <Zap size={20} fill={audioQuality === 'lossless' ? 'currentColor' : 'none'} />
             </button>
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-orange-400 flex items-center justify-center text-white text-[10px] font-black">ME</div>
           </div>
-        </div>
-        {view === 'search' && (
-           <div className="mt-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" autoFocus placeholder="Artists, Songs, and More" 
-              className="w-full bg-gray-100 py-3 pl-10 pr-4 rounded-xl text-sm focus:outline-none"
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
+
+          {/* Mobile Only Search Bar */}
+          {view === 'search' && (
+             <div className="mt-4 relative sm:hidden">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" autoFocus placeholder="Artists, Songs, and More" 
+                className="w-full bg-gray-100 py-3 pl-10 pr-4 rounded-xl text-sm focus:outline-none"
+                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
+              />
+            </div>
+          )}
+        </header>
+
+        {/* Scrollable Grid */}
+        <main className="flex-1 overflow-y-auto pb-40 lg:pb-32 px-6">
+          {view === 'home' && (
+            <div className="space-y-10 mt-6 animate-in fade-in duration-500">
+              <section>
+                <h2 className="text-xl font-bold mb-4 lg:text-2xl">Featured Albums</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-8">
+                  {searchResults.albums.slice(0, 10).map(album => (
+                    <div key={album.id} onClick={() => playAlbum(album)} className="group cursor-pointer active:scale-95 transition-all">
+                      <div className="relative overflow-hidden rounded-2xl shadow-lg mb-3 aspect-square">
+                        <img src={album.cover} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={album.title} />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                           <div className="bg-pink-500 p-4 rounded-full text-white shadow-xl">
+                             <Play size={24} fill="white" />
+                           </div>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-sm truncate">{album.title}</h4>
+                      <p className="text-gray-400 text-xs font-medium uppercase truncate">{album.artist}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              
+              <section className="pb-10">
+                <h2 className="text-xl font-bold mb-4 lg:text-2xl">Quick Mixes</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-pink-500 to-orange-400 rounded-2xl p-6 h-48 flex flex-col justify-end text-white shadow-lg cursor-pointer hover:rotate-1 transition-transform">
+                    <Star fill="white" size={32} className="mb-auto" />
+                    <p className="font-black text-2xl">Favorites Mix</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-600 to-cyan-400 rounded-2xl p-6 h-48 flex flex-col justify-end text-white shadow-lg cursor-pointer hover:-rotate-1 transition-transform">
+                    <TrendingUp size={32} className="mb-auto" />
+                    <p className="font-black text-2xl">Discovery</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {view === 'search' && (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 mt-6 pb-10">
+              {searchResults.albums.map(album => (
+                <div key={album.id} onClick={() => playAlbum(album)} className="space-y-2 cursor-pointer group">
+                  <div className="relative aspect-square rounded-2xl overflow-hidden shadow-md">
+                    <img src={album.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={album.title} />
+                  </div>
+                  <h4 className="font-bold text-xs truncate group-hover:text-pink-500 transition-colors">{album.title}</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">{album.artist}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* Desktop Bottom Player - Replaces Mini/Full on PC */}
+        {currentTrack && (
+          <div className="fixed bottom-0 left-0 lg:left-64 right-0 h-24 lg:h-28 bg-white/80 backdrop-blur-3xl border-t border-gray-100 px-6 flex items-center justify-between z-50">
+            {/* Current Track Info */}
+            <div className="flex items-center w-1/4 min-w-[200px]">
+              <img src={currentTrack.cover} className="w-12 h-12 lg:w-16 lg:h-16 rounded-xl shadow-md mr-4" alt="cover" />
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm truncate">{currentTrack.title}</h4>
+                <p className="text-pink-500 text-[11px] font-bold uppercase truncate">{currentTrack.artist}</p>
+              </div>
+              <button onClick={() => toggleFavorite(currentTrack)} className={`ml-4 ${favorites.some(f => f.title === currentTrack.title) ? 'text-pink-500' : 'text-gray-200'}`}>
+                <Heart size={18} fill={favorites.some(f => f.title === currentTrack.title) ? "currentColor" : "none"} />
+              </button>
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-col items-center flex-1 max-w-xl px-10">
+              <div className="flex items-center space-x-6 mb-2">
+                <button onClick={() => setIsShuffle(!isShuffle)} className={`hidden sm:block ${isShuffle ? 'text-pink-500' : 'text-gray-300'}`}><Shuffle size={18} /></button>
+                <button onClick={handlePrev} className="text-black hover:scale-110 transition-transform"><SkipBack size={24} fill="currentColor" /></button>
+                <button onClick={togglePlay} className="w-10 h-10 lg:w-12 lg:h-12 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg">
+                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                </button>
+                <button onClick={handleNext} className="text-black hover:scale-110 transition-transform"><SkipForward size={24} fill="currentColor" /></button>
+                <button onClick={toggleLoop} className={`hidden sm:block ${loopMode !== 'none' ? 'text-pink-500' : 'text-gray-300'}`}>
+                  {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+                </button>
+              </div>
+              
+              <div className="w-full flex items-center space-x-3">
+                <span className="text-[10px] font-bold text-gray-400 tabular-nums">{formatTime(audioRef.current?.currentTime)}</span>
+                <input 
+                  type="range" className="flex-1 h-1 bg-gray-100 rounded-full appearance-none accent-pink-500 cursor-pointer" 
+                  min="0" max="100" step="0.1" value={progress} 
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (audioRef.current?.duration) audioRef.current.currentTime = (val / 100) * audioRef.current.duration;
+                  }} 
+                />
+                <span className="text-[10px] font-bold text-gray-400 tabular-nums">-{formatTime((audioRef.current?.duration || 0) - (audioRef.current?.currentTime || 0))}</span>
+              </div>
+            </div>
+
+            {/* Volume & Extras */}
+            <div className="hidden md:flex items-center justify-end w-1/4 space-x-4">
+              <button className="text-gray-400 hover:text-black transition-colors"><List size={18} /></button>
+              <div className="flex items-center space-x-2 w-32">
+                <Volume2 size={18} className="text-gray-400" />
+                <input type="range" className="flex-1 h-1 bg-gray-100 rounded-full appearance-none accent-gray-400" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
+              </div>
+              <button onClick={() => setIsFullPlayerOpen(true)} className="lg:hidden p-2 text-gray-400"><Layout size={18} /></button>
+            </div>
+            
+            {/* Mobile View Toggle */}
+            <button 
+              onClick={() => setIsFullPlayerOpen(true)} 
+              className="lg:hidden absolute top-0 left-0 w-full h-full opacity-0 z-0" 
             />
           </div>
         )}
-      </header>
 
-      {/* Scrollable Content Area */}
-      <main className="flex-1 overflow-y-auto pb-40 px-6">
-        {view === 'home' && (
-          <div className="space-y-10 mt-6 animate-in fade-in duration-500">
-            <section>
-              <h2 className="text-2xl font-bold mb-4">Listen Now</h2>
-              <div className="flex space-x-4 overflow-x-auto no-scrollbar snap-x pb-4">
-                {searchResults.albums.slice(0, 5).map(album => (
-                  <div key={album.id} onClick={() => playAlbum(album)} className="flex-shrink-0 w-64 snap-start cursor-pointer active:scale-95 transition-transform">
-                    <img src={album.cover} className="w-full aspect-square rounded-2xl object-cover shadow-lg mb-3" alt={album.title} />
-                    <h4 className="font-bold text-sm truncate">{album.title}</h4>
-                    <p className="text-gray-400 text-xs font-medium uppercase">{album.artist}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <section>
-              <h2 className="text-xl font-bold mb-4">Made For You</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-pink-500 to-orange-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg cursor-pointer">
-                  <Star fill="white" className="mb-auto" />
-                  <p className="font-black text-lg">Favorites Mix</p>
-                </div>
-                <div className="bg-gradient-to-br from-blue-600 to-cyan-400 rounded-2xl p-4 h-40 flex flex-col justify-end text-white shadow-lg cursor-pointer">
-                  <TrendingUp className="mb-auto" />
-                  <p className="font-black text-lg">Discovery</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
+        {/* Mobile Tab Bar - Hidden on PC */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-24 bg-white/90 backdrop-blur-2xl border-t border-gray-50 flex justify-around items-center px-6 z-30">
+          <TabItem icon={<Home size={24} />} label="Home" active={view === 'home'} onClick={() => setView('home')} />
+          <TabItem icon={<Compass size={24} />} label="Browse" active={view === 'browse'} onClick={() => setView('browse')} />
+          <TabItem icon={<Radio size={24} />} label="Radio" active={view === 'radio'} onClick={() => setView('radio')} />
+          <TabItem icon={<Library size={24} />} label="Library" active={view === 'library'} onClick={() => setView('library')} />
+          <TabItem icon={<Search size={24} />} label="Search" active={view === 'search'} onClick={() => setView('search')} />
+        </nav>
+      </div>
 
-        {view === 'search' && (
-          <div className="grid grid-cols-2 gap-6 mt-6 pb-10">
-            {searchResults.albums.map(album => (
-              <div key={album.id} onClick={() => playAlbum(album)} className="space-y-2 cursor-pointer active:scale-95 transition-transform">
-                <img src={album.cover} className="w-full aspect-square rounded-2xl shadow-md object-cover" alt={album.title} />
-                <h4 className="font-bold text-xs truncate">{album.title}</h4>
-                <p className="text-[10px] text-pink-500 font-bold">{album.artist}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {/* Mini Player */}
-      {currentTrack && !isFullPlayerOpen && (
-        <div onClick={() => setIsFullPlayerOpen(true)} className="fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-3xl border border-gray-200 rounded-2xl shadow-2xl z-40 flex flex-col p-3 animate-in slide-in-from-bottom-8 cursor-pointer">
-          <div className="flex items-center w-full">
-            <img src={currentTrack.cover} className="w-10 h-10 rounded-lg shadow-sm mr-3" alt="cover" />
-            <div className="flex-1 min-w-0 mr-2">
-              <h4 className="font-bold text-[11px] truncate">{currentTrack.title}</h4>
-              <p className="text-pink-500 text-[9px] font-bold uppercase truncate">{currentTrack.artist}</p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button onClick={togglePlay} className="p-2 text-black active:scale-90 transition-transform">
-                {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="p-2 text-gray-400"><SkipForward size={24} fill="currentColor" /></button>
-            </div>
-          </div>
-          <div className="absolute top-0 left-3 right-3 h-[2px] bg-gray-100 overflow-hidden">
-             <div className="h-full bg-pink-500" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      )}
-
-      {/* Full Player */}
+      {/* Full Player - Only for Mobile Viewport */}
       {currentTrack && isFullPlayerOpen && (
-        <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden">
+        <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden lg:hidden">
           <div className="pt-16 px-8 flex justify-between items-center">
             <button onClick={() => setIsFullPlayerOpen(false)} className="bg-gray-100 p-2 rounded-full"><ChevronDown size={24} /></button>
+            <span className="font-bold text-xs uppercase tracking-widest text-gray-400">Playing from Album</span>
             <button className="bg-gray-100 p-2 rounded-full"><MoreHorizontal size={24} /></button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center px-10 space-y-10">
@@ -320,11 +427,6 @@ const App = () => {
               </button>
               <button onClick={handleNext} className="p-4 active:scale-90"><SkipForward size={48} fill="currentColor" /></button>
             </div>
-            <div className="w-full flex items-center space-x-4">
-              <Volume2 size={14} className="text-gray-300" />
-              <input type="range" className="flex-1 h-1 bg-gray-200 rounded-full appearance-none accent-gray-400 cursor-pointer" min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} />
-              <Volume2 size={20} className="text-gray-300" />
-            </div>
           </div>
           <div className="h-32 flex justify-around items-center px-10 text-gray-300">
              <button className="p-2"><Music size={24} /></button>
@@ -336,15 +438,6 @@ const App = () => {
           </div>
         </div>
       )}
-
-      {/* Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 h-24 bg-white/90 backdrop-blur-2xl border-t border-gray-50 flex justify-around items-center px-6 z-30">
-        <TabItem icon={<Home size={24} />} label="Home" active={view === 'home'} onClick={() => setView('home')} />
-        <TabItem icon={<Compass size={24} />} label="Browse" active={view === 'browse'} onClick={() => setView('browse')} />
-        <TabItem icon={<Radio size={24} />} label="Radio" active={view === 'radio'} onClick={() => setView('radio')} />
-        <TabItem icon={<Library size={24} />} label="Library" active={view === 'library'} onClick={() => setView('library')} />
-        <TabItem icon={<Search size={24} />} label="Search" active={view === 'search'} onClick={() => setView('search')} />
-      </nav>
 
       <audio 
         ref={audioRef} 
