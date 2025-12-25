@@ -6,30 +6,19 @@ import {
   SkipForward, 
   SkipBack,
   Music, 
-  Heart, 
   Home,
   Compass,
-  Radio,
   ChevronLeft,
-  MoreHorizontal,
-  Zap,
-  Repeat,
-  Repeat1,
-  ChevronDown,
   Volume2,
   List,
   Library,
-  Shuffle,
-  Star,
-  TrendingUp,
-  History,
   X
 } from 'lucide-react';
 
 const App = () => {
   const [view, setView] = useState('home'); 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState({ artists: [], albums: [], tracks: [] });
+  const [searchResults, setSearchResults] = useState({ albums: [] });
   const [loading, setLoading] = useState(false);
   const [currentTrack, setCurrentTrack] = useState(null);
   const [queue, setQueue] = useState([]);
@@ -37,33 +26,30 @@ const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(80);
-  const [loopMode, setLoopMode] = useState('none'); 
   const [isShuffle, setIsShuffle] = useState(false);
-  const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   
   const audioRef = useRef(null);
 
-  // Initial Data Fetch
+  // Initial Data Fetch - Added safety check
   useEffect(() => {
-    fetchSmartResults('popular music');
+    const initLoad = async () => {
+      try {
+        await fetchSmartResults('popular music');
+      } catch (e) {
+        console.warn("Initial load throttled, ready for user search.");
+      }
+    };
+    initLoad();
   }, []);
 
-  // Sync Volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume / 100;
-    }
+    if (audioRef.current) audioRef.current.volume = volume / 100;
   }, [volume]);
 
-  // Robust Playback Control
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
-    
     if (isPlaying) {
-      audioRef.current.play().catch(() => {
-        // Handle auto-play block
-        setIsPlaying(false);
-      });
+      audioRef.current.play().catch(() => setIsPlaying(false));
     } else {
       audioRef.current.pause();
     }
@@ -74,7 +60,7 @@ const App = () => {
     setLoading(true);
     try {
       const queryStr = q === 'popular music' ? 'mediatype:audio' : `mediatype:audio AND (${q})`;
-      const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(queryStr)}&output=json&rows=40&page=1&sort[]=downloads+desc`;
+      const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(queryStr)}&output=json&rows=30&page=1&sort[]=downloads+desc`;
       const response = await fetch(url);
       const data = await response.json();
       const docs = data.response.docs || [];
@@ -89,7 +75,7 @@ const App = () => {
       setSearchResults({ albums });
       if (view !== 'search' && q !== 'popular music') setView('search');
     } catch (err) {
-      console.error("Search failed", err);
+      console.error("Search error:", err);
     } finally {
       setLoading(false);
     }
@@ -120,7 +106,7 @@ const App = () => {
         loadTrack(albumTracks[0]);
       }
     } catch (err) {
-      console.error("Metadata load failed", err);
+      console.error("Metadata error:", err);
     } finally {
       setLoading(false);
     }
@@ -138,9 +124,6 @@ const App = () => {
       const next = queueIndex + 1;
       setQueueIndex(next);
       loadTrack(queue[next]);
-    } else if (loopMode === 'all' && queue.length > 0) {
-      setQueueIndex(0);
-      loadTrack(queue[0]);
     } else {
       setIsPlaying(false);
     }
@@ -164,13 +147,11 @@ const App = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white text-black font-sans overflow-hidden">
+    <div className="flex flex-col h-screen h-[100dvh] w-full bg-white text-black font-sans overflow-hidden">
       
-      {/* MAIN CONTENT WRAPPER */}
       <div className="flex flex-1 overflow-hidden">
-        
-        {/* SIDEBAR (Desktop Only) */}
-        <aside className="hidden lg:flex flex-col w-64 border-r border-gray-100 p-6 bg-white overflow-y-auto">
+        {/* SIDEBAR */}
+        <aside className="hidden lg:flex flex-col w-64 border-r border-gray-100 p-6 bg-white shrink-0">
           <div className="flex items-center space-x-2 px-2 mb-8">
             <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
               <Music className="text-white" size={18} />
@@ -179,94 +160,77 @@ const App = () => {
           </div>
           
           <nav className="space-y-1">
-            <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Discover</p>
-            <button onClick={() => setView('home')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'home' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <button onClick={() => setView('home')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl ${view === 'home' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
               <Home size={20} /><span className="font-bold text-sm">Listen Now</span>
             </button>
-            <button onClick={() => setView('browse')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'browse' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
-              <Compass size={20} /><span className="font-bold text-sm">Browse</span>
-            </button>
-            <button onClick={() => setView('search')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'search' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <button onClick={() => setView('search')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl ${view === 'search' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
               <Search size={20} /><span className="font-bold text-sm">Search</span>
             </button>
-            
-            <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mt-8 mb-4">Library</p>
-            <button onClick={() => setView('library')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl transition-all ${view === 'library' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <button onClick={() => setView('library')} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-xl ${view === 'library' ? 'bg-pink-50 text-pink-500' : 'text-gray-500 hover:bg-gray-50'}`}>
               <Library size={20} /><span className="font-bold text-sm">Library</span>
             </button>
           </nav>
         </aside>
 
-        {/* MAIN DISPLAY */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white">
-          <header className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
-            <h1 className="text-2xl font-black tracking-tight capitalize">{view === 'home' ? 'Listen Now' : view}</h1>
+        {/* MAIN */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="px-6 py-4 flex items-center justify-between bg-white border-b border-gray-50 z-10">
+            <h1 className="text-2xl font-black tracking-tight capitalize">{view}</h1>
             <div className="flex items-center space-x-4">
-              <div className="hidden md:flex relative w-64">
+              <div className="relative md:block hidden">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input 
                   type="text" placeholder="Search..."
-                  className="w-full bg-gray-50 py-2 pl-10 pr-4 rounded-full text-sm outline-none border border-transparent focus:border-pink-100"
+                  className="bg-gray-50 py-2 pl-10 pr-4 rounded-full text-sm outline-none w-48 focus:w-64 transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && fetchSmartResults(searchQuery)}
                 />
               </div>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-orange-400" />
             </div>
           </header>
 
           <main className="flex-1 overflow-y-auto p-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-6 pb-24">
               {searchResults.albums.map((album) => (
-                <div key={album.id} onClick={() => playAlbum(album)} className="group cursor-pointer space-y-3 active:scale-95 transition-transform">
-                  <div className="relative aspect-square rounded-2xl overflow-hidden shadow-md bg-gray-100">
+                <div key={album.id} onClick={() => playAlbum(album)} className="cursor-pointer group">
+                  <div className="aspect-square rounded-2xl overflow-hidden shadow-md bg-gray-100 relative mb-3">
                     <img src={album.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="" />
-                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <div className="bg-white p-3 rounded-full shadow-lg"><Play size={20} fill="black" /></div>
+                    <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-white p-3 rounded-full shadow-xl"><Play size={20} fill="black" /></div>
                     </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-sm truncate">{album.title}</h4>
-                    <p className="text-gray-400 text-xs truncate uppercase font-semibold">{album.artist}</p>
-                  </div>
+                  <h4 className="font-bold text-sm truncate">{album.title}</h4>
+                  <p className="text-gray-400 text-xs truncate uppercase font-bold tracking-wider">{album.artist}</p>
                 </div>
               ))}
             </div>
-            
-            {loading && (
-              <div className="flex justify-center py-20">
-                <div className="w-8 h-8 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
+            {loading && <div className="text-center py-12 text-gray-400 font-bold animate-pulse">Loading Archive...</div>}
           </main>
         </div>
       </div>
 
-      {/* PLAYER BAR (Static Flex Bottom) */}
+      {/* PLAYER */}
       {currentTrack && (
-        <div className="border-t border-gray-100 bg-white/95 backdrop-blur-xl px-6 py-3 lg:py-4 z-40">
-          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
-            
-            {/* Track Info */}
-            <div className="flex items-center space-x-3 w-1/3 min-w-0" onClick={() => setIsFullPlayerOpen(true)}>
-              <img src={currentTrack.cover} className="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm" alt="" />
+        <div className="border-t border-gray-100 bg-white/95 backdrop-blur-xl px-4 py-3 lg:px-8 z-50">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center space-x-3 w-1/3 min-w-0">
+              <img src={currentTrack.cover} className="w-10 h-10 lg:w-14 lg:h-14 rounded-lg object-cover shadow-sm flex-shrink-0" alt="" />
               <div className="min-w-0">
-                <h4 className="font-bold text-sm truncate">{currentTrack.title}</h4>
+                <h4 className="font-bold text-xs lg:text-sm truncate">{currentTrack.title}</h4>
                 <p className="text-pink-500 text-[10px] font-black uppercase truncate">{currentTrack.artist}</p>
               </div>
             </div>
 
-            {/* Controls */}
             <div className="flex flex-col items-center flex-1">
               <div className="flex items-center space-x-6">
-                <button onClick={handlePrev} className="text-black hover:text-pink-500"><SkipBack size={20} fill="currentColor" /></button>
-                <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform">
+                <button onClick={handlePrev} className="hover:text-pink-500"><SkipBack size={20} fill="currentColor" /></button>
+                <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform">
                   {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
                 </button>
-                <button onClick={handleNext} className="text-black hover:text-pink-500"><SkipForward size={20} fill="currentColor" /></button>
+                <button onClick={handleNext} className="hover:text-pink-500"><SkipForward size={20} fill="currentColor" /></button>
               </div>
-              <div className="hidden lg:flex items-center w-full max-w-sm mt-2 space-x-2 text-[10px] font-bold text-gray-400">
+              <div className="hidden lg:flex items-center w-full max-w-md mt-2 space-x-2 text-[10px] font-bold text-gray-400">
                 <span>{formatTime(audioRef.current?.currentTime)}</span>
                 <div className="flex-1 h-1 bg-gray-100 rounded-full relative overflow-hidden">
                   <div className="absolute inset-y-0 left-0 bg-pink-500" style={{ width: `${progress}%` }} />
@@ -275,23 +239,19 @@ const App = () => {
               </div>
             </div>
 
-            {/* Volume */}
             <div className="hidden md:flex items-center justify-end w-1/3 space-x-4">
-              <div className="flex items-center space-x-2 w-24">
-                <Volume2 size={16} className="text-gray-400" />
-                <input 
-                  type="range" className="w-full h-1 bg-gray-100 rounded-full appearance-none accent-pink-500 cursor-pointer" 
-                  min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} 
-                />
-              </div>
-              <button className="text-gray-400"><List size={18} /></button>
+              <Volume2 size={16} className="text-gray-400" />
+              <input 
+                type="range" className="w-24 h-1 bg-gray-100 rounded-full appearance-none accent-pink-500" 
+                min="0" max="100" value={volume} onChange={(e) => setVolume(e.target.value)} 
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* MOBILE BOTTOM NAV */}
-      <nav className="lg:hidden h-16 border-t border-gray-50 flex items-center justify-around bg-white px-4 z-40">
+      {/* MOBILE NAV */}
+      <nav className="lg:hidden h-16 border-t border-gray-100 flex items-center justify-around bg-white shrink-0">
         <button onClick={() => setView('home')} className={`flex flex-col items-center ${view === 'home' ? 'text-pink-500' : 'text-gray-400'}`}>
           <Home size={20} /><span className="text-[10px] mt-1 font-bold">Home</span>
         </button>
@@ -303,7 +263,6 @@ const App = () => {
         </button>
       </nav>
 
-      {/* HIDDEN AUDIO ELEMENT */}
       <audio 
         ref={audioRef}
         src={currentTrack?.audioUrl}
@@ -315,7 +274,6 @@ const App = () => {
         }}
         onEnded={handleNext}
       />
-
     </div>
   );
 };
